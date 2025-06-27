@@ -95,19 +95,15 @@ router.delete('/appointments/:id', async (req: Request, res: Response) => {
 // Obtener citas del cliente
 router.get('/appointments', async (req: Request, res: Response) => {
   const clientId = req.query.clientId as string;
-  console.log('🔍 Backend route /appointments: clientId recibido =', clientId);
   
   if (!clientId) {
-    console.log('❌ Backend route /appointments: Falta clientId');
     res.status(400).json({ error: 'Falta clientId' });
     return;
   }
   try {
     const data = await getAppointments(clientId);
-    console.log('🔍 Backend route /appointments: Datos obtenidos =', data);
     res.json({ success: true, appointments: Array.isArray(data) ? data : [] });
   } catch (error: any) {
-    console.error('❌ Backend route /appointments: Error =', error);
     res.status(500).json({ error: error.message, appointments: [] });
   }
 });
@@ -184,6 +180,74 @@ router.post('/notifications/:id/read', async (req: Request, res: Response) => {
     res.json({ success: true, notification: data });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+// Obtener fecha real de internet
+router.get('/real-time', async (req: Request, res: Response) => {
+  try {
+    // Intentar múltiples servicios para mayor confiabilidad
+    const services = [
+      'https://worldtimeapi.org/api/ip',
+      'https://timeapi.io/api/Time/current/zone?timeZone=UTC',
+      'https://api.timezonedb.com/v2.1/get-time-zone?key=demo&format=json&by=zone&zone=UTC'
+    ];
+
+    for (const service of services) {
+      try {
+        const response = await fetch(service, { 
+          method: 'GET',
+          headers: { 'Accept': 'application/json' },
+          signal: AbortSignal.timeout(3000) // 3 segundos timeout
+        });
+        
+        if (response.ok) {
+          const data = await response.json() as any;
+          let realDate;
+          
+          // Parsear según el servicio
+          if (service.includes('worldtimeapi')) {
+            realDate = new Date(data.utc_datetime);
+          } else if (service.includes('timeapi.io')) {
+            realDate = new Date(data.dateTime);
+          } else if (service.includes('timezonedb')) {
+            realDate = new Date(data.formatted);
+          }
+          
+          if (realDate && !isNaN(realDate.getTime())) {
+            res.json({
+              success: true,
+              date: realDate.toISOString(),
+              timestamp: Date.now(),
+              source: service,
+              timezone: data.timezone || 'UTC'
+            });
+            return;
+          }
+        }
+      } catch (error) {
+        console.warn(`Error obteniendo fecha de ${service}:`, error);
+        continue;
+      }
+    }
+    
+    // Si todos los servicios fallan, usar fecha del servidor
+    console.warn('No se pudo obtener fecha de internet, usando fecha del servidor');
+    res.json({
+      success: true,
+      date: new Date().toISOString(),
+      timestamp: Date.now(),
+      source: 'server',
+      timezone: 'UTC'
+    });
+    
+  } catch (error: any) {
+    console.error('Error en /real-time:', error);
+    res.status(500).json({ 
+      error: 'Error obteniendo fecha real',
+      date: new Date().toISOString(),
+      source: 'server-fallback'
+    });
   }
 });
 
