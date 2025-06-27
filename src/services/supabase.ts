@@ -55,12 +55,18 @@ export async function getPublicBusinessData(clientId: string) {
 
 // Obtener citas de un cliente
 export async function getAppointments(clientId: string) {
+  console.log('🔍 Backend getAppointments: clientId =', clientId);
+  
   const { data, error } = await supabase
     .from('appointments')
     .select('*')
     .eq('client_id', clientId)
     .order('date', { ascending: true })
     .order('time', { ascending: true });
+  
+  console.log('🔍 Backend getAppointments: Error =', error);
+  console.log('🔍 Backend getAppointments: Data =', data);
+  
   if (error) throw error;
   return data;
 }

@@ -95,14 +95,19 @@ router.delete('/appointments/:id', async (req: Request, res: Response) => {
 // Obtener citas del cliente
 router.get('/appointments', async (req: Request, res: Response) => {
   const clientId = req.query.clientId as string;
+  console.log('🔍 Backend route /appointments: clientId recibido =', clientId);
+  
   if (!clientId) {
+    console.log('❌ Backend route /appointments: Falta clientId');
     res.status(400).json({ error: 'Falta clientId' });
     return;
   }
   try {
     const data = await getAppointments(clientId);
+    console.log('🔍 Backend route /appointments: Datos obtenidos =', data);
     res.json({ success: true, appointments: Array.isArray(data) ? data : [] });
   } catch (error: any) {
+    console.error('❌ Backend route /appointments: Error =', error);
     res.status(500).json({ error: error.message, appointments: [] });
   }
 });
