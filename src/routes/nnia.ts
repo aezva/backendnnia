@@ -149,14 +149,20 @@ router.post('/availability', async (req: Request, res: Response) => {
 // Obtener notificaciones de un cliente
 router.get('/notifications', async (req: Request, res: Response) => {
   const clientId = req.query.clientId as string;
+  console.log('🔍 GET /notifications - clientId recibido:', clientId);
+  
   if (!clientId) {
+    console.log('❌ GET /notifications - Falta clientId');
     res.status(400).json({ error: 'Falta clientId' });
     return;
   }
   try {
+    console.log('🔍 GET /notifications - Llamando a getNotifications');
     const data = await getNotifications(clientId);
+    console.log('🔍 GET /notifications - Datos obtenidos:', data);
     res.json({ success: true, notifications: Array.isArray(data) ? data : [] });
   } catch (error: any) {
+    console.error('❌ GET /notifications - Error:', error);
     res.status(500).json({ error: error.message, notifications: [] });
   }
 });
