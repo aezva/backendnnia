@@ -277,12 +277,22 @@ export async function deleteAppointment(id: string) {
 
 // Obtener notificaciones de un cliente
 export async function getNotifications(clientId: string) {
+  console.log('🔍 getNotifications - clientId recibido:', clientId);
+  
   const { data, error } = await supabase
     .from('notifications')
     .select('*')
     .eq('client_id', clientId)
     .order('created_at', { ascending: false });
-  if (error) throw error;
+  
+  if (error) {
+    console.error('❌ getNotifications - error:', error);
+    throw error;
+  }
+  
+  console.log('🔍 getNotifications - notificaciones encontradas:', data?.length || 0);
+  console.log('🔍 getNotifications - datos completos:', data);
+  
   return data;
 }
 
