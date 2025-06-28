@@ -37,14 +37,6 @@ router.post('/respond', async (req, res) => {
                 if (!citaData.origin)
                     citaData.origin = source === 'client-panel' ? 'panel' : 'web';
                 citaCreada = await (0, supabase_1.createAppointment)(citaData);
-                // Crear notificación automática
-                await (0, supabase_1.createNotification)({
-                    client_id: clientId,
-                    type: 'appointment_created',
-                    title: 'Nueva cita agendada',
-                    body: `Se ha agendado una cita para ${citaData.name} el ${citaData.date} a las ${citaData.time}`,
-                    data: JSON.stringify(citaCreada)
-                });
                 nniaMsg = `✅ Cita agendada correctamente para ${citaCreada.name} el ${citaCreada.date} a las ${citaCreada.time} (${citaCreada.type}). Se ha enviado confirmación a tu panel.`;
             }
             catch (e) {
