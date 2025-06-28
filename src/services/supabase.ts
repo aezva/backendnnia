@@ -179,6 +179,9 @@ export async function createAppointment(appointment: any) {
     // Intentar crear notificación asociada, pero no fallar si hay error
     if (cita && cita.client_id) {
       try {
+        console.log('🔍 Debug - cita.client_id:', cita.client_id);
+        console.log('🔍 Debug - appointment.client_id original:', appointment.client_id);
+        
         await createNotification({
           client_id: cita.client_id, // Usar el client_id real de la cita
           type: 'appointment_created',
