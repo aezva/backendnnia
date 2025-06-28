@@ -67,8 +67,8 @@ async function getAppointments(clientId) {
         .from('appointments')
         .select('*')
         .eq('client_id', clientId)
-        .order('date', { ascending: true })
-        .order('time', { ascending: true });
+        .order('appointment_date', { ascending: true })
+        .order('appointment_time', { ascending: true });
     if (error)
         throw error;
     return data;
@@ -105,8 +105,18 @@ async function getBusinessInfoIdByClientId(clientId) {
 }
 // En createAppointment, obtener el id de business_info y usarlo en la notificación
 async function createAppointment(appointment) {
-    // Forzar status 'pending' si no viene definido
-    const citaData = { ...appointment, status: appointment.status || 'pending' };
+    // Mapear campos del formato NNIA al formato de la base de datos
+    const citaData = {
+        client_id: appointment.client_id,
+        client_name: appointment.name,
+        client_email: appointment.email,
+        service_name: appointment.type,
+        appointment_date: appointment.date,
+        appointment_time: appointment.time,
+        status: appointment.status || 'pending',
+        origin: appointment.origin || 'web',
+        notes: appointment.notes || ''
+    };
     const { data, error } = await exports.supabase
         .from('appointments')
         .insert([citaData])
@@ -117,13 +127,12 @@ async function createAppointment(appointment) {
     // Intentar crear notificación asociada, pero no fallar si hay error
     if (cita && cita.client_id) {
         try {
-            const businessInfoId = await getBusinessInfoIdByClientId(cita.client_id);
             await createNotification({
-                client_id: businessInfoId,
-                type: 'cita',
+                client_id: cita.client_id,
+                type: 'appointment_created',
                 title: 'Nueva cita agendada',
-                body: `Se ha agendado una cita para ${cita.name || ''} el ${cita.date} a las ${cita.time}.`,
-                data: { appointmentId: cita.id },
+                message: `Se ha agendado una cita para ${cita.client_name} el ${cita.appointment_date} a las ${cita.appointment_time}`,
+                data: JSON.stringify(cita)
             });
         }
         catch (notifError) {
