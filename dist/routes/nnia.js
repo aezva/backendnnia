@@ -18,11 +18,9 @@ router.post('/respond', async (req, res) => {
         // 2. Obtener disponibilidad y tipos de cita
         const availability = await (0, supabase_1.getAvailabilityAndTypes)(clientId);
         // 3. Construir prompt personalizado con solo información pública y disponibilidad
-        const prompt = await (0, promptBuilder_1.buildPrompt)(clientId, message, source);
+        const prompt = await (0, promptBuilder_1.buildPromptAsync)({ businessData, message, source, availability });
         // 4. Usar Assistant API con GPT-4
-        const nniaResponse = await (0, openai_1.askNNIAWithAssistantAPI)([
-            { role: 'user', content: prompt }
-        ], threadId);
+        const nniaResponse = await (0, openai_1.askNNIAWithAssistantAPI)(prompt, threadId);
         let nniaMsg = nniaResponse.message;
         let citaCreada = null;
         // Si Assistant API falló, lanzar error en lugar de usar fallback
@@ -39,9 +37,18 @@ router.post('/respond', async (req, res) => {
                 if (!citaData.origin)
                     citaData.origin = source === 'client-panel' ? 'panel' : 'web';
                 citaCreada = await (0, supabase_1.createAppointment)(citaData);
+                // Crear notificación automática
+                await (0, supabase_1.createNotification)({
+                    client_id: clientId,
+                    type: 'appointment_created',
+                    title: 'Nueva cita agendada',
+                    message: `Se ha agendado una cita para ${citaData.name} el ${citaData.date} a las ${citaData.time}`,
+                    data: JSON.stringify(citaCreada)
+                });
                 nniaMsg = `✅ Cita agendada correctamente para ${citaCreada.name} el ${citaCreada.date} a las ${citaCreada.time} (${citaCreada.type}). Se ha enviado confirmación a tu panel.`;
             }
             catch (e) {
+                console.error('Error creando cita:', e);
                 nniaMsg = 'Ocurrió un error al intentar agendar la cita. Por favor, revisa los datos e inténtalo de nuevo.';
             }
         }
@@ -54,6 +61,7 @@ router.post('/respond', async (req, res) => {
         });
     }
     catch (error) {
+        console.error('Error en /nnia/respond:', error);
         res.status(500).json({ error: 'Error procesando la solicitud de NNIA', details: error.message });
     }
 });

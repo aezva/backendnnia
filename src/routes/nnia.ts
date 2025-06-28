@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { buildPrompt } from '../utils/promptBuilder';
+import { buildPrompt, buildPromptAsync } from '../utils/promptBuilder';
 import { askNNIAWithAssistantAPI } from '../services/openai';
 import { getClientData, getPublicBusinessData, getAppointments, createAppointment, getAvailability, setAvailability, getAvailabilityAndTypes, updateAppointment, deleteAppointment, getNotifications, createNotification, markNotificationRead } from '../services/supabase';
 
@@ -21,12 +21,10 @@ router.post('/respond', async (req: Request, res: Response) => {
     const availability = await getAvailabilityAndTypes(clientId);
 
     // 3. Construir prompt personalizado con solo información pública y disponibilidad
-    const prompt = await buildPrompt(clientId, message, source);
+    const prompt = await buildPromptAsync({ businessData, message, source, availability });
 
     // 4. Usar Assistant API con GPT-4
-    const nniaResponse = await askNNIAWithAssistantAPI([
-      { role: 'user', content: prompt }
-    ], threadId);
+    const nniaResponse = await askNNIAWithAssistantAPI(prompt, threadId);
     let nniaMsg = nniaResponse.message;
     let citaCreada = null;
 
@@ -44,8 +42,19 @@ router.post('/respond', async (req: Request, res: Response) => {
         citaData.client_id = clientId;
         if (!citaData.origin) citaData.origin = source === 'client-panel' ? 'panel' : 'web';
         citaCreada = await createAppointment(citaData);
+        
+        // Crear notificación automática
+        await createNotification({
+          client_id: clientId,
+          type: 'appointment_created',
+          title: 'Nueva cita agendada',
+          message: `Se ha agendado una cita para ${citaData.name} el ${citaData.date} a las ${citaData.time}`,
+          data: JSON.stringify(citaCreada)
+        });
+        
         nniaMsg = `✅ Cita agendada correctamente para ${citaCreada.name} el ${citaCreada.date} a las ${citaCreada.time} (${citaCreada.type}). Se ha enviado confirmación a tu panel.`;
       } catch (e) {
+        console.error('Error creando cita:', e);
         nniaMsg = 'Ocurrió un error al intentar agendar la cita. Por favor, revisa los datos e inténtalo de nuevo.';
       }
     }
@@ -58,6 +67,7 @@ router.post('/respond', async (req: Request, res: Response) => {
       allMessages: nniaResponse.allMessages
     });
   } catch (error: any) {
+    console.error('Error en /nnia/respond:', error);
     res.status(500).json({ error: 'Error procesando la solicitud de NNIA', details: error.message });
   }
 });
