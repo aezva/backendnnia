@@ -92,6 +92,7 @@ function cleanNotificationInput(notification: any) {
 // Crear notificación
 export async function createNotification(notification: any) {
   console.log('🔍 createNotification - datos recibidos:', notification);
+  console.log('🔍 createNotification - stack trace:', new Error().stack);
   
   // Mapear campos al formato correcto de la tabla notifications
   const cleanNotification = {
