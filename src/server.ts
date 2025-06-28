@@ -7,7 +7,7 @@ import nniaRoutes from './routes/nnia';
 dotenv.config();
 console.log('OPENAI_API_KEY:', process.env.OPENAI_API_KEY ? 'CARGADA' : 'VACÍA');
 console.log('SUPABASE_URL:', process.env.SUPABASE_URL ? 'CARGADA' : 'VACÍA');
-console.log('SUPABASE_SERVICE_ROLE_KEY:', process.env.SUPABASE_SERVICE_ROLE_KEY);
+console.log('SUPABASE_SERVICE_KEY:', process.env.SUPABASE_SERVICE_KEY ? 'CARGADA' : 'VACÍA');
 
 const app = express();
 app.use(express.json());

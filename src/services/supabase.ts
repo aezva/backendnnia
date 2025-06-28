@@ -3,10 +3,10 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 console.log('DEBUG SUPABASE_URL:', process.env.SUPABASE_URL);
-console.log('DEBUG SUPABASE_SERVICE_ROLE_KEY:', process.env.SUPABASE_SERVICE_ROLE_KEY ? '[PRESENTE]' : '[VACÍA]');
+console.log('DEBUG SUPABASE_SERVICE_KEY:', process.env.SUPABASE_SERVICE_KEY ? '[PRESENTE]' : '[VACÍA]');
 
 const supabaseUrl = process.env.SUPABASE_URL || '';
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+const supabaseKey = process.env.SUPABASE_SERVICE_KEY || '';
 export const supabase = createClient(supabaseUrl, supabaseKey);
 
 export async function getClientData(clientId: string) {
