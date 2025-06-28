@@ -37,10 +37,11 @@ export async function getPublicBusinessData(clientId: string) {
     .single();
   if (businessError) throw businessError;
 
-  // Combinar los datos
+  // Combinar los datos, excluyendo el id del businessInfo
+  const { id, ...businessInfoWithoutId } = businessInfo;
   const combined = {
     business_name: client.business_name,
-    ...businessInfo
+    ...businessInfoWithoutId
   };
 
   // Filtrar campos vacíos o nulos para limpiar la respuesta
