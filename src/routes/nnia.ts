@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
-import { buildPrompt } from '../utils/promptBuilder';
-import { askNNIAWithModel } from '../services/openai';
+import { buildPromptAsync } from '../utils/promptBuilder';
+import { askNNIAWithAssistantAPI } from '../services/openai';
 import { getClientData, getPublicBusinessData, getAppointments, createAppointment, getAvailability, setAvailability, getAvailabilityAndTypes, updateAppointment, deleteAppointment, getNotifications, createNotification, markNotificationRead } from '../services/supabase';
 
 const router = Router();
@@ -21,19 +21,14 @@ router.post('/respond', async (req: Request, res: Response) => {
     const availability = await getAvailabilityAndTypes(clientId);
 
     // 3. Construir prompt personalizado con solo información pública y disponibilidad
-    const prompt = buildPrompt({ businessData, message, source, availability });
+    const prompt = await buildPromptAsync({ businessData, message, source, availability });
 
-    // 4. Elegir modelo según el canal
-    let model = 'gpt-3.5-turbo';
-    // Si en el futuro quieres usar gpt-4 para el panel, puedes hacer:
-    // if (source === 'client-panel') model = 'gpt-4';
-
-    // 5. Llamar a la API de OpenAI con el modelo elegido
-    const nniaResponse = await askNNIAWithModel(prompt, model);
+    // 4. Usar Assistant API con GPT-4
+    const nniaResponse = await askNNIAWithAssistantAPI(prompt, threadId);
     let nniaMsg = nniaResponse.message;
     let citaCreada = null;
 
-    // 6. Detectar si NNIA quiere crear una cita
+    // 5. Detectar si NNIA quiere crear una cita
     if (nniaMsg && nniaMsg.trim().startsWith('CREAR_CITA:')) {
       try {
         const citaStr = nniaMsg.replace('CREAR_CITA:', '').trim();
@@ -52,6 +47,7 @@ router.post('/respond', async (req: Request, res: Response) => {
       success: true,
       nnia: nniaMsg,
       cita: citaCreada,
+      threadId: nniaResponse.threadId,
       allMessages: nniaResponse.allMessages
     });
   } catch (error: any) {
@@ -67,13 +63,7 @@ router.post('/analyze-document', async (req: Request, res: Response) => {
   res.json({ success: true, summary: 'Resumen del documento (pendiente de integración real)' });
 });
 
-// Gestión de citas (crear, actualizar, eliminar)
-router.post('/appointments', async (req: Request, res: Response) => {
-  // Aquí se recibirían los datos de la cita y se guardarían en Supabase
-  // Ejemplo de respuesta:
-  res.json({ success: true, message: 'Cita creada (pendiente de integración real)' });
-});
-
+// Gestión de citas (actualizar, eliminar)
 router.put('/appointments/:id', async (req: Request, res: Response) => {
   try {
     const data = await updateAppointment(req.params.id, req.body);

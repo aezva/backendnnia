@@ -1,4 +1,45 @@
-export function buildPrompt({ businessData, message, source, availability }: { businessData: any, message: string, source: string, availability?: any }) {
+import fetch from 'node-fetch';
+
+// Función para obtener la fecha real de internet (UTC)
+async function getRealDateFromInternet() {
+  const services = [
+    'https://worldtimeapi.org/api/ip',
+    'https://timeapi.io/api/Time/current/zone?timeZone=UTC',
+    'https://api.timezonedb.com/v2.1/get-time-zone?key=demo&format=json&by=zone&zone=UTC'
+  ];
+  for (const service of services) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 3000);
+      const response = await fetch(service, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' },
+        signal: controller.signal
+      });
+      clearTimeout(timeout);
+      if (response.ok) {
+        const data: any = await response.json();
+        let realDate;
+        if (service.includes('worldtimeapi')) {
+          realDate = new Date(data.utc_datetime);
+        } else if (service.includes('timeapi.io')) {
+          realDate = new Date(data.dateTime);
+        } else if (service.includes('timezonedb')) {
+          realDate = new Date(data.formatted);
+        }
+        if (realDate && !isNaN(realDate.getTime())) {
+          return realDate;
+        }
+      }
+    } catch (error) {
+      continue;
+    }
+  }
+  // Si todos fallan, usar fecha local
+  return new Date();
+}
+
+export async function buildPromptAsync({ businessData, message, source, availability }: { businessData: any, message: string, source: string, availability?: any }) {
   // Determinar el rol de NNIA según el canal/source
   let rol = '';
   if (source === 'client-panel') {
@@ -40,8 +81,15 @@ export function buildPrompt({ businessData, message, source, availability }: { b
     tipos_cita: availability.types
   } : {};
 
+  // Obtener la fecha real actual (preferentemente de internet)
+  const today = await getRealDateFromInternet();
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth() + 1).padStart(2, '0');
+  const dd = String(today.getDate()).padStart(2, '0');
+  const exampleDate = `${yyyy}-${mm}-${dd}`;
+
   // Instrucción especial para agendar citas
-  const citaInstruccion = `Si en la conversación tienes todos los datos para agendar una cita (nombre, email, tipo, día y hora), responde SOLO con la frase: CREAR_CITA: seguido de los datos en formato JSON, por ejemplo: CREAR_CITA: {"name":"Juan Pérez","email":"juan@email.com","type":"phone","date":"2024-06-20","time":"10:00","origin":"web"}`;
+  const citaInstruccion = `Si en la conversación tienes todos los datos para agendar una cita (nombre, email, tipo, día y hora), responde SOLO con la frase: CREAR_CITA: seguido de los datos en formato JSON, por ejemplo: CREAR_CITA: {"name":"Juan Pérez","email":"juan@email.com","type":"phone","date":"${exampleDate}","time":"10:00","origin":"web"}`;
 
   // Solo retornar el mensaje del usuario, el contexto debe estar en la configuración del Assistant
   return [
