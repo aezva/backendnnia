@@ -37,11 +37,11 @@ export async function getPublicBusinessData(clientId: string) {
     .single();
   if (businessError) throw businessError;
 
-  // Combinar los datos, renombrando el id del businessInfo para evitar confusión
+  // Combinar los datos, EXCLUYENDO el id del businessInfo para evitar confusión
   const { id, ...businessInfoWithoutId } = businessInfo;
   const combined = {
     business_name: client.business_name,
-    business_info_id: id, // Renombrar para claridad
+    // NO incluir business_info_id para evitar que el Assistant API lo use incorrectamente
     ...businessInfoWithoutId
   };
 
@@ -91,18 +91,24 @@ function cleanNotificationInput(notification: any) {
 
 // Función de validación profesional para client_id
 async function validateClientId(clientId: string): Promise<boolean> {
+  console.log('🔍 validateClientId - Iniciando validación para:', clientId);
+  
   if (!clientId || typeof clientId !== 'string') {
     console.log('❌ validateClientId: clientId inválido o vacío');
     return false;
   }
 
   try {
+    console.log('🔍 validateClientId - Consultando tabla clients para:', clientId);
+    
     // Verificar que el client_id existe en la tabla clients
     const { data, error } = await supabase
       .from('clients')
       .select('id')
       .eq('id', clientId)
       .single();
+
+    console.log('🔍 validateClientId - Resultado de consulta:', { data, error });
 
     if (error) {
       console.log('❌ validateClientId: Error verificando client_id:', error.message);
@@ -197,29 +203,59 @@ function validateAppointmentData(appointment: any) {
   return cleanData;
 }
 
-// Función helper profesional para crear notificaciones de citas
-export async function createAppointmentNotification(cita: any) {
-  console.log('🔍 createAppointmentNotification - Iniciando con cita:', cita.id);
+// Función helper específica para crear notificaciones de citas
+export async function createAppointmentNotification(appointmentData: any) {
+  console.log('🔔 createAppointmentNotification - Iniciando con datos:', appointmentData);
   
-  if (!cita || !cita.client_id) {
-    console.error('❌ createAppointmentNotification: Cita inválida o sin client_id');
-    throw new Error('Cita inválida para crear notificación');
-  }
-
   try {
-    const notification = await createNotification({
-      client_id: cita.client_id,
+    // Obtener el client_id correcto de la cita
+    const clientId = appointmentData.client_id;
+    console.log('🔔 createAppointmentNotification - client_id de la cita:', clientId);
+    
+    if (!clientId) {
+      console.log('❌ createAppointmentNotification: No hay client_id en los datos de la cita');
+      return null;
+    }
+
+    // Validar que el client_id existe
+    const isValidClient = await validateClientId(clientId);
+    console.log('🔔 createAppointmentNotification - Validación de client_id:', isValidClient);
+    
+    if (!isValidClient) {
+      console.log('❌ createAppointmentNotification: client_id inválido, no se crea notificación');
+      return null;
+    }
+
+    // Crear la notificación
+    const notificationData = {
+      client_id: clientId,
       type: 'appointment_created',
       title: 'Nueva cita agendada',
-      body: `Se ha agendado una cita para ${cita.name} el ${cita.date} a las ${cita.time}`,
-      data: JSON.stringify(cita)
-    });
-    
-    console.log('✅ createAppointmentNotification - Notificación creada exitosamente');
-    return notification;
+      message: `Se ha agendado una cita para ${appointmentData.name} el ${appointmentData.date} a las ${appointmentData.time}`,
+      read: false,
+      created_at: new Date().toISOString()
+    };
+
+    console.log('🔔 createAppointmentNotification - Datos de notificación a crear:', notificationData);
+
+    const { data, error } = await supabase
+      .from('notifications')
+      .insert([notificationData])
+      .select()
+      .single();
+
+    console.log('🔔 createAppointmentNotification - Resultado de inserción:', { data, error });
+
+    if (error) {
+      console.error('❌ createAppointmentNotification: Error creando notificación:', error);
+      return null;
+    }
+
+    console.log('✅ createAppointmentNotification: Notificación creada exitosamente:', data);
+    return data;
   } catch (error) {
-    console.error('❌ createAppointmentNotification - Error:', error);
-    throw error;
+    console.error('❌ createAppointmentNotification: Error inesperado:', error);
+    return null;
   }
 }
 
