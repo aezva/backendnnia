@@ -93,14 +93,32 @@ function cleanNotificationInput(notification) {
 }
 // Crear notificación
 async function createNotification(notification) {
-    const clean = cleanNotificationInput(notification);
-    const { data, error } = await exports.supabase
-        .from('notifications')
-        .insert([clean])
-        .select();
-    if (error)
+    console.log('🔍 createNotification - datos recibidos:', notification);
+    // Mapear campos al formato correcto de la tabla notifications
+    const cleanNotification = {
+        client_id: notification.client_id,
+        type: notification.type,
+        title: notification.title,
+        body: notification.message || notification.body, // usar 'body' en lugar de 'message'
+        data: typeof notification.data === 'string' ? notification.data : JSON.stringify(notification.data || {})
+    };
+    console.log('🔍 createNotification - datos mapeados:', cleanNotification);
+    try {
+        const { data, error } = await exports.supabase
+            .from('notifications')
+            .insert([cleanNotification])
+            .select();
+        if (error) {
+            console.error('❌ Error en createNotification:', error);
+            throw error;
+        }
+        console.log('✅ createNotification - notificación creada:', data[0]);
+        return data[0];
+    }
+    catch (error) {
+        console.error('❌ Error completo en createNotification:', error);
         throw error;
-    return data[0];
+    }
 }
 // Helper para obtener el id de business_info a partir de client_id
 async function getBusinessInfoIdByClientId(clientId) {
@@ -155,13 +173,14 @@ async function createAppointment(appointment) {
                     client_id: cita.client_id,
                     type: 'appointment_created',
                     title: 'Nueva cita agendada',
-                    message: `Se ha agendado una cita para ${cita.name} el ${cita.date} a las ${cita.time}`,
+                    body: `Se ha agendado una cita para ${cita.name} el ${cita.date} a las ${cita.time}`, // usar 'body' en lugar de 'message'
                     data: JSON.stringify(cita)
                 });
                 console.log('✅ Notificación creada exitosamente');
             }
             catch (notifError) {
                 console.error('❌ Error creando notificación:', notifError);
+                // NO lanzar error aquí - la cita ya se creó correctamente
             }
         }
         return cita;

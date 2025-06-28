@@ -42,7 +42,7 @@ router.post('/respond', async (req, res) => {
                     client_id: clientId,
                     type: 'appointment_created',
                     title: 'Nueva cita agendada',
-                    message: `Se ha agendado una cita para ${citaData.name} el ${citaData.date} a las ${citaData.time}`,
+                    body: `Se ha agendado una cita para ${citaData.name} el ${citaData.date} a las ${citaData.time}`,
                     data: JSON.stringify(citaCreada)
                 });
                 nniaMsg = `✅ Cita agendada correctamente para ${citaCreada.name} el ${citaCreada.date} a las ${citaCreada.time} (${citaCreada.type}). Se ha enviado confirmación a tu panel.`;
