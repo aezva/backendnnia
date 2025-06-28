@@ -109,25 +109,35 @@ async function getBusinessInfoIdByClientId(clientId: string) {
   return data.id;
 }
 
+// Función para validar y limpiar datos de cita antes de insertar
+function validateAppointmentData(appointment: any) {
+  // Campos que SÍ existen en la tabla appointments
+  const validFields = ['client_id', 'name', 'email', 'type', 'date', 'time', 'status', 'origin'];
+  
+  const cleanData: any = {};
+  
+  // Solo incluir campos válidos
+  validFields.forEach(field => {
+    if (appointment[field] !== undefined && appointment[field] !== null) {
+      cleanData[field] = appointment[field];
+    }
+  });
+  
+  // Valores por defecto
+  if (!cleanData.status) cleanData.status = 'pending';
+  if (!cleanData.origin) cleanData.origin = 'web';
+  
+  return cleanData;
+}
+
 // En createAppointment, obtener el id de business_info y usarlo en la notificación
 export async function createAppointment(appointment: any) {
   console.log('🔍 createAppointment - datos recibidos:', appointment);
   
-  // Mapear campos del formato NNIA al formato de la base de datos
-  // Usando los nombres de columnas que SÍ existen en la tabla appointments
-  const citaData = {
-    client_id: appointment.client_id,
-    name: appointment.name,           // en lugar de client_name
-    email: appointment.email,         // en lugar de client_email
-    type: appointment.type,           // en lugar de service_name
-    date: appointment.date,           // en lugar de appointment_date
-    time: appointment.time,           // en lugar de appointment_time
-    status: appointment.status || 'pending',
-    origin: appointment.origin || 'web',
-    notes: appointment.notes || ''
-  };
-
-  console.log('🔍 createAppointment - datos mapeados:', citaData);
+  // Validar y limpiar datos antes de insertar
+  const citaData = validateAppointmentData(appointment);
+  
+  console.log('🔍 createAppointment - datos validados y mapeados:', citaData);
 
   try {
     const { data, error } = await supabase
