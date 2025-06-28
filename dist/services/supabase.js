@@ -8,6 +8,7 @@ exports.getClientData = getClientData;
 exports.getPublicBusinessData = getPublicBusinessData;
 exports.getAppointments = getAppointments;
 exports.createNotification = createNotification;
+exports.createAppointmentNotification = createAppointmentNotification;
 exports.createAppointment = createAppointment;
 exports.getAvailability = getAvailability;
 exports.setAvailability = setAvailability;
@@ -52,10 +53,12 @@ async function getPublicBusinessData(clientId) {
         .single();
     if (businessError)
         throw businessError;
-    // Combinar los datos
+    // Combinar los datos, EXCLUYENDO el id del businessInfo para evitar confusión
+    const { id, ...businessInfoWithoutId } = businessInfo;
     const combined = {
         business_name: client.business_name,
-        ...businessInfo
+        // NO incluir business_info_id para evitar que el Assistant API lo use incorrectamente
+        ...businessInfoWithoutId
     };
     // Filtrar campos vacíos o nulos para limpiar la respuesta
     const cleanData = Object.fromEntries(Object.entries(combined).filter(([_, value]) => value !== null && value !== undefined && value !== ''));
@@ -91,9 +94,41 @@ function cleanNotificationInput(notification) {
         data: typeof rest.data === 'object' && rest.data !== null ? rest.data : {},
     };
 }
-// Crear notificación
+// Función de validación profesional para client_id
+async function validateClientId(clientId) {
+    if (!clientId || typeof clientId !== 'string') {
+        return false;
+    }
+    try {
+        // Verificar que el client_id existe en la tabla clients
+        const { data, error } = await exports.supabase
+            .from('clients')
+            .select('id')
+            .eq('id', clientId)
+            .single();
+        if (error) {
+            console.error('Error validando client_id:', error.message);
+            return false;
+        }
+        if (!data) {
+            return false;
+        }
+        return true;
+    }
+    catch (error) {
+        console.error('Error inesperado validando client_id:', error);
+        return false;
+    }
+}
+// Crear notificación con validación profesional
 async function createNotification(notification) {
-    console.log('🔍 createNotification - datos recibidos:', notification);
+    // Validar client_id antes de crear la notificación
+    const isValidClientId = await validateClientId(notification.client_id);
+    if (!isValidClientId) {
+        const error = new Error(`client_id inválido: ${notification.client_id}. Debe ser un ID válido de la tabla clients.`);
+        console.error('Validación fallida en createNotification:', error.message);
+        throw error;
+    }
     // Mapear campos al formato correcto de la tabla notifications
     const cleanNotification = {
         client_id: notification.client_id,
@@ -102,34 +137,21 @@ async function createNotification(notification) {
         body: notification.message || notification.body, // usar 'body' en lugar de 'message'
         data: typeof notification.data === 'string' ? notification.data : JSON.stringify(notification.data || {})
     };
-    console.log('🔍 createNotification - datos mapeados:', cleanNotification);
     try {
         const { data, error } = await exports.supabase
             .from('notifications')
             .insert([cleanNotification])
             .select();
         if (error) {
-            console.error('❌ Error en createNotification:', error);
+            console.error('Error en createNotification:', error);
             throw error;
         }
-        console.log('✅ createNotification - notificación creada:', data[0]);
         return data[0];
     }
     catch (error) {
-        console.error('❌ Error completo en createNotification:', error);
+        console.error('Error completo en createNotification:', error);
         throw error;
     }
-}
-// Helper para obtener el id de business_info a partir de client_id
-async function getBusinessInfoIdByClientId(clientId) {
-    const { data, error } = await exports.supabase
-        .from('business_info')
-        .select('id')
-        .eq('client_id', clientId)
-        .single();
-    if (error)
-        throw error;
-    return data.id;
 }
 // Función para validar y limpiar datos de cita antes de insertar
 function validateAppointmentData(appointment) {
@@ -149,54 +171,74 @@ function validateAppointmentData(appointment) {
         cleanData.origin = 'web';
     return cleanData;
 }
+// Función helper específica para crear notificaciones de citas
+async function createAppointmentNotification(appointmentData) {
+    try {
+        // Obtener el client_id correcto de la cita
+        const clientId = appointmentData.client_id;
+        if (!clientId) {
+            console.error('No hay client_id en los datos de la cita');
+            return null;
+        }
+        // Validar que el client_id existe
+        const isValidClient = await validateClientId(clientId);
+        if (!isValidClient) {
+            console.error('client_id inválido, no se crea notificación');
+            return null;
+        }
+        // Crear la notificación
+        const notificationData = {
+            client_id: clientId,
+            type: 'appointment_created',
+            title: 'Nueva cita agendada',
+            message: `Se ha agendado una cita para ${appointmentData.name} el ${appointmentData.date} a las ${appointmentData.time}`,
+            read: false,
+            created_at: new Date().toISOString()
+        };
+        const { data, error } = await exports.supabase
+            .from('notifications')
+            .insert([notificationData])
+            .select()
+            .single();
+        if (error) {
+            console.error('Error creando notificación de cita:', error);
+            return null;
+        }
+        return data;
+    }
+    catch (error) {
+        console.error('Error inesperado en createAppointmentNotification:', error);
+        return null;
+    }
+}
 // En createAppointment, obtener el id de business_info y usarlo en la notificación
 async function createAppointment(appointment) {
-    console.log('🔍 createAppointment - datos recibidos:', appointment);
     // Validar y limpiar datos antes de insertar
     const citaData = validateAppointmentData(appointment);
-    console.log('🔍 createAppointment - datos validados y mapeados:', citaData);
     try {
         const { data, error } = await exports.supabase
             .from('appointments')
             .insert([citaData])
             .select();
         if (error) {
-            console.error('❌ Error en createAppointment:', error);
+            console.error('Error en createAppointment:', error);
             throw error;
         }
         const cita = data[0];
-        console.log('✅ createAppointment - cita creada:', cita);
         // Intentar crear notificación asociada, pero no fallar si hay error
         if (cita && cita.client_id) {
             try {
-                // Obtener el business_info_id correspondiente al client_id
-                const { data: businessInfo, error: businessError } = await exports.supabase
-                    .from('business_info')
-                    .select('id')
-                    .eq('client_id', cita.client_id)
-                    .single();
-                if (businessError) {
-                    console.error('❌ Error obteniendo business_info:', businessError);
-                    return cita; // Retornar la cita aunque no se pueda crear la notificación
-                }
-                await createNotification({
-                    client_id: businessInfo.id, // Usar business_info.id en lugar de client_id
-                    type: 'appointment_created',
-                    title: 'Nueva cita agendada',
-                    body: `Se ha agendado una cita para ${cita.name} el ${cita.date} a las ${cita.time}`,
-                    data: JSON.stringify(cita)
-                });
-                console.log('✅ Notificación creada exitosamente');
+                await createAppointmentNotification(cita);
             }
             catch (notifError) {
-                console.error('❌ Error creando notificación:', notifError);
+                console.error('Error creando notificación:', notifError);
                 // NO lanzar error aquí - la cita ya se creó correctamente
             }
         }
         return cita;
     }
     catch (error) {
-        console.error('❌ Error completo en createAppointment:', error);
+        console.error('Error completo en createAppointment:', error);
         throw error;
     }
 }
@@ -273,13 +315,18 @@ async function deleteAppointment(id) {
 }
 // Obtener notificaciones de un cliente
 async function getNotifications(clientId) {
+    console.log('🔍 getNotifications - clientId recibido:', clientId);
     const { data, error } = await exports.supabase
         .from('notifications')
         .select('*')
         .eq('client_id', clientId)
         .order('created_at', { ascending: false });
-    if (error)
+    if (error) {
+        console.error('❌ getNotifications - error:', error);
         throw error;
+    }
+    console.log('🔍 getNotifications - notificaciones encontradas:', data?.length || 0);
+    console.log('🔍 getNotifications - datos completos:', data);
     return data;
 }
 // Marcar notificación como leída

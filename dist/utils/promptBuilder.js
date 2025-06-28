@@ -85,11 +85,26 @@ async function buildPromptAsync({ businessData, message, source, availability })
     const exampleDate = `${yyyy}-${mm}-${dd}`;
     // Instrucción especial para agendar citas
     const citaInstruccion = `Si en la conversación tienes todos los datos para agendar una cita (nombre, email, tipo, día y hora), responde SOLO con la frase: CREAR_CITA: seguido de los datos en formato JSON, por ejemplo: CREAR_CITA: {"name":"Juan Pérez","email":"juan@email.com","type":"phone","date":"${exampleDate}","time":"10:00","origin":"web"}`;
-    // Solo retornar el mensaje del usuario, el contexto debe estar en la configuración del Assistant
+    // Incluir la fecha actual en el contexto para que NNIA siempre la use
     return [
         {
             role: 'user',
-            content: `Información del negocio: ${JSON.stringify(businessContext)}. Configuración de citas: ${JSON.stringify(citaContext)}. Canal: ${source}. ${rol}\n${citaInstruccion}\n\nMensaje del usuario: ${message}`,
+            content: `FECHA ACTUAL: ${currentDate} (${exampleDate})
+
+Información del negocio: ${JSON.stringify(businessContext)}. 
+Configuración de citas: ${JSON.stringify(citaContext)}. 
+Canal: ${source}. 
+
+${rol}
+
+INSTRUCCIONES IMPORTANTES:
+1. SIEMPRE usa la fecha actual real (${currentDate}) para cualquier referencia temporal
+2. Si te preguntan por la fecha, responde con la fecha actual real
+3. Para citas futuras, usa fechas posteriores a ${exampleDate}
+
+${citaInstruccion}
+
+Mensaje del usuario: ${message}`,
         },
     ];
 }

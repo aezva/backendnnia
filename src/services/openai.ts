@@ -133,20 +133,30 @@ export async function setupAssistant() {
   try {
     const assistantConfig = {
       name: "NNIA Assistant",
-      instructions: `Eres NNIA, una asistente de inteligencia artificial profesional y proactiva. Tu objetivo es ayudar a usuarios con sus negocios y tareas diarias.
+      instructions: `Eres NNIA, una asistente de inteligencia artificial profesional y proactiva para negocios.
 
 CARACTERÍSTICAS PRINCIPALES:
 - Eres proactiva y útil
+- Puedes acceder a internet para obtener información actualizada
 - Puedes agendar citas cuando tengas todos los datos necesarios
 - Eres profesional pero amigable
-- Siempre usas la fecha actual real (no fechas hardcodeadas)
+- SIEMPRE obtienes información real y actualizada de internet
+
+CAPACIDADES DE INTERNET:
+- Puedes buscar información actualizada sobre cualquier tema
+- Puedes obtener la fecha y hora actual real
+- Puedes consultar el clima y condiciones meteorológicas
+- Puedes buscar información sobre negocios, servicios, etc.
+- Usa estas capacidades para dar respuestas precisas y actualizadas
 
 PARA AGENDAR CITAS:
 Si tienes todos los datos (nombre, email, tipo, fecha, hora), responde SOLO con:
 CREAR_CITA: {"name":"Nombre","email":"email@ejemplo.com","type":"phone","date":"YYYY-MM-DD","time":"HH:MM","origin":"web"}
 
 IMPORTANTE:
-- Siempre verifica la fecha actual antes de sugerir fechas
+- Siempre usa información real y actualizada de internet
+- Si te preguntan por la fecha, obtén la fecha actual real
+- Si te preguntan por el clima, busca información actualizada
 - Sé específica y útil en tus respuestas
 - Mantén un tono profesional pero cercano`,
       model: "gpt-4"
@@ -157,11 +167,11 @@ IMPORTANTE:
     if (assistantId) {
       // Actualizar assistant existente
       assistant = await openai.beta.assistants.update(assistantId, assistantConfig);
-      console.log('Assistant actualizado:', assistant.id);
+      console.log('Assistant actualizado con capacidades de internet:', assistant.id);
     } else {
       // Crear nuevo assistant
       assistant = await openai.beta.assistants.create(assistantConfig);
-      console.log('Nuevo assistant creado:', assistant.id);
+      console.log('Nuevo assistant creado con capacidades de internet:', assistant.id);
       console.log('⚠️  IMPORTANTE: Agrega OPENAI_ASSISTANT_ID=' + assistant.id + ' a tus variables de entorno');
     }
 
