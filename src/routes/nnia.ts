@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { buildPromptAsync } from '../utils/promptBuilder';
+import { buildPrompt } from '../utils/promptBuilder';
 import { askNNIAWithAssistantAPI } from '../services/openai';
 import { getClientData, getPublicBusinessData, getAppointments, createAppointment, getAvailability, setAvailability, getAvailabilityAndTypes, updateAppointment, deleteAppointment, getNotifications, createNotification, markNotificationRead } from '../services/supabase';
 
@@ -21,12 +21,19 @@ router.post('/respond', async (req: Request, res: Response) => {
     const availability = await getAvailabilityAndTypes(clientId);
 
     // 3. Construir prompt personalizado con solo información pública y disponibilidad
-    const prompt = await buildPromptAsync({ businessData, message, source, availability });
+    const prompt = await buildPrompt(clientId, message, source);
 
     // 4. Usar Assistant API con GPT-4
-    const nniaResponse = await askNNIAWithAssistantAPI(prompt, threadId);
+    const nniaResponse = await askNNIAWithAssistantAPI([
+      { role: 'user', content: prompt }
+    ], threadId);
     let nniaMsg = nniaResponse.message;
     let citaCreada = null;
+
+    // Si Assistant API falló, lanzar error en lugar de usar fallback
+    if (nniaResponse.error) {
+      throw new Error(`Assistant API falló: ${nniaResponse.error}`);
+    }
 
     // 5. Detectar si NNIA quiere crear una cita
     if (nniaMsg && nniaMsg.trim().startsWith('CREAR_CITA:')) {

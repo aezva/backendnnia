@@ -24,16 +24,29 @@ export async function askNNIAWithModel(messages: {role: string, content: string}
 // NUEVA: Función mejorada con Assistant API
 export async function askNNIAWithAssistantAPI(messages: {role: string, content: string}[], threadId?: string) {
   try {
+    console.log('🔧 Intentando usar Assistant API...');
+    console.log('Assistant ID:', assistantId);
+    
+    if (!assistantId) {
+      console.error('❌ No hay OPENAI_ASSISTANT_ID configurado');
+      throw new Error('Assistant ID no configurado');
+    }
+
     // 1. Si no hay thread, crear uno nuevo
     let thread = threadId;
     if (!thread) {
+      console.log('📝 Creando nuevo thread...');
       const threadRes = await openai.beta.threads.create();
       thread = threadRes.id;
+      console.log('✅ Thread creado:', thread);
+    } else {
+      console.log('📝 Usando thread existente:', thread);
     }
 
     // 2. Solo añadir mensajes de usuario (no system)
     const userMsg = messages.find(m => m.role === 'user');
     if (userMsg) {
+      console.log('💬 Agregando mensaje de usuario...');
       await openai.beta.threads.messages.create(thread, {
         role: 'user',
         content: userMsg.content,
@@ -41,9 +54,11 @@ export async function askNNIAWithAssistantAPI(messages: {role: string, content: 
     }
 
     // 3. Ejecutar el assistant
+    console.log('🤖 Ejecutando assistant...');
     const run = await openai.beta.threads.runs.create(thread, {
       assistant_id: assistantId
     });
+    console.log('✅ Run iniciado:', run.id);
 
     // 4. Esperar a que el run termine (polling mejorado)
     let runStatus = run.status;
@@ -51,31 +66,34 @@ export async function askNNIAWithAssistantAPI(messages: {role: string, content: 
     let attempts = 0;
     const maxAttempts = 150; // 60 segundos máximo
 
+    console.log('⏳ Esperando que el run termine...');
     while ((runStatus === 'queued' || runStatus === 'in_progress') && attempts < maxAttempts) {
       await new Promise((r) => setTimeout(r, 400));
       runResult = await openai.beta.threads.runs.retrieve(run.id, { thread_id: thread });
       runStatus = runResult.status;
       attempts++;
       
+      if (attempts % 10 === 0) {
+        console.log(`⏳ Run status: ${runStatus} (intento ${attempts})`);
+      }
+      
       // Si requiere acción del usuario, manejar aquí
       if (runStatus === 'requires_action') {
-        console.log('Assistant requiere acción del usuario');
+        console.log('⚠️ Assistant requiere acción del usuario');
         break;
       }
     }
 
+    console.log(`🏁 Run finalizado con status: ${runStatus}`);
+
     // 5. Verificar si el run fue exitoso
     if (runStatus !== 'completed') {
-      console.error('Run no completado:', runStatus);
-      return {
-        threadId: thread,
-        message: 'Lo siento, tuve un problema procesando tu solicitud. ¿Podrías intentarlo de nuevo?',
-        allMessages: [],
-        error: runStatus
-      };
+      console.error('❌ Run no completado:', runStatus);
+      throw new Error(`Run failed with status: ${runStatus}`);
     }
 
     // 6. Obtener los mensajes finales del thread
+    console.log('📨 Obteniendo respuesta del assistant...');
     const messagesFinales = await openai.beta.threads.messages.list(thread);
     const lastMessage = messagesFinales.data.find((msg) => msg.role === 'assistant');
     let assistantText = '';
@@ -87,6 +105,9 @@ export async function askNNIAWithAssistantAPI(messages: {role: string, content: 
       }
     }
 
+    console.log('✅ Assistant API funcionando correctamente');
+    console.log('💬 Respuesta:', assistantText.substring(0, 100) + '...');
+
     return {
       threadId: thread,
       run: runResult,
@@ -94,7 +115,8 @@ export async function askNNIAWithAssistantAPI(messages: {role: string, content: 
       allMessages: messagesFinales.data,
     };
   } catch (error) {
-    console.error('Error en Assistant API:', error);
+    console.error('❌ Error en Assistant API:', error);
+    console.log('�� Usando fallback al modelo directo...');
     // Fallback al modelo directo si Assistant API falla
     const fallbackResponse = await askNNIAWithModel(messages);
     return {

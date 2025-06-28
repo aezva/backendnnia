@@ -1,101 +1,62 @@
 import fetch from 'node-fetch';
 
-// Función para obtener la fecha real de internet (UTC)
-async function getRealDateFromInternet() {
-  const services = [
-    'https://worldtimeapi.org/api/ip',
-    'https://timeapi.io/api/Time/current/zone?timeZone=UTC',
-    'https://api.timezonedb.com/v2.1/get-time-zone?key=demo&format=json&by=zone&zone=UTC'
-  ];
-  for (const service of services) {
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 3000);
-      const response = await fetch(service, {
-        method: 'GET',
-        headers: { 'Accept': 'application/json' },
-        signal: controller.signal
+// Función simplificada para obtener fecha actual
+async function getCurrentDate(): Promise<string> {
+  try {
+    // Intentar obtener fecha de internet
+    const response = await fetch('https://worldtimeapi.org/api/ip');
+    if (response.ok) {
+      const data = await response.json();
+      const date = new Date(data.datetime);
+      console.log('🌐 Fecha obtenida de internet:', date.toLocaleDateString('es-ES'));
+      return date.toLocaleDateString('es-ES', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
       });
-      clearTimeout(timeout);
-      if (response.ok) {
-        const data: any = await response.json();
-        let realDate;
-        if (service.includes('worldtimeapi')) {
-          realDate = new Date(data.utc_datetime);
-        } else if (service.includes('timeapi.io')) {
-          realDate = new Date(data.dateTime);
-        } else if (service.includes('timezonedb')) {
-          realDate = new Date(data.formatted);
-        }
-        if (realDate && !isNaN(realDate.getTime())) {
-          return realDate;
-        }
-      }
-    } catch (error) {
-      continue;
     }
+  } catch (error) {
+    console.log('⚠️ No se pudo obtener fecha de internet, usando fecha local');
   }
-  // Si todos fallan, usar fecha local
-  return new Date();
+  
+  // Fallback a fecha local
+  const localDate = new Date();
+  console.log('📅 Usando fecha local:', localDate.toLocaleDateString('es-ES'));
+  return localDate.toLocaleDateString('es-ES', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
 }
 
-export async function buildPromptAsync({ businessData, message, source, availability }: { businessData: any, message: string, source: string, availability?: any }) {
-  // Determinar el rol de NNIA según el canal/source
-  let rol = '';
-  if (source === 'client-panel') {
-    rol = 'Eres la asistente personal del usuario, dueña o dueño del negocio. Responde de forma profesional, proactiva y con información interna del negocio.';
-  } else {
-    rol = 'Eres la asistente de ventas y atención al cliente del negocio. Atiendes a visitantes y potenciales clientes en la web o redes sociales. Solo usa información pública del negocio.';
-  }
+export async function buildPrompt(clientId: string, message: string, source: string): Promise<string> {
+  const currentDate = await getCurrentDate();
+  
+  return `Eres NNIA, un asistente virtual inteligente y amigable para un negocio local. 
 
-  // Construir contexto del negocio con solo información pública
-  const businessContext = {
-    nombre: businessData.business_name,
-    descripcion: businessData.description,
-    tipo: businessData.business_type,
-    direccion: businessData.address,
-    telefono: businessData.phone,
-    email: businessData.email,
-    sitio_web: businessData.website,
-    horarios: businessData.opening_hours,
-    servicios: businessData.services,
-    productos: businessData.products,
-    slogan: businessData.slogan,
-    mision: businessData.mission,
-    valores: businessData.values,
-    redes_sociales: businessData.social_media,
-    sobre_nosotros: businessData.about,
-    preguntas_frecuentes: businessData.faq,
-    testimonios: businessData.testimonials,
-    equipo: businessData.team,
-    premios: businessData.awards,
-    certificaciones: businessData.certifications,
-    politicas: businessData.policies,
-    informacion_contacto: businessData.contact_info
-  };
+INFORMACIÓN ACTUAL:
+- Fecha actual: ${currentDate}
+- Cliente: ${clientId}
+- Origen: ${source}
 
-  // Añadir disponibilidad y tipos de cita al contexto
-  const citaContext = availability ? {
-    disponibilidad_citas: availability.days,
-    horarios_citas: availability.hours,
-    tipos_cita: availability.types
-  } : {};
+CAPACIDADES:
+- Puedes acceder a internet para obtener información actualizada
+- Tienes memoria de conversaciones previas
+- Puedes agendar citas y recordatorios
+- Puedes responder preguntas sobre el negocio
+- Puedes proporcionar información sobre servicios y horarios
 
-  // Obtener la fecha real actual (preferentemente de internet)
-  const today = await getRealDateFromInternet();
-  const yyyy = today.getFullYear();
-  const mm = String(today.getMonth() + 1).padStart(2, '0');
-  const dd = String(today.getDate()).padStart(2, '0');
-  const exampleDate = `${yyyy}-${mm}-${dd}`;
+INSTRUCCIONES:
+1. SIEMPRE usa la fecha actual real (${currentDate}) para cualquier referencia temporal
+2. Sé amigable, profesional y útil
+3. Si te preguntan por la fecha, responde con la fecha actual real
+4. Si te preguntan por el clima, puedes buscar información actualizada
+5. Para agendar citas, solicita: nombre, servicio, fecha y hora preferida
+6. Mantén un tono conversacional y natural
 
-  // Instrucción especial para agendar citas
-  const citaInstruccion = `Si en la conversación tienes todos los datos para agendar una cita (nombre, email, tipo, día y hora), responde SOLO con la frase: CREAR_CITA: seguido de los datos en formato JSON, por ejemplo: CREAR_CITA: {"name":"Juan Pérez","email":"juan@email.com","type":"phone","date":"${exampleDate}","time":"10:00","origin":"web"}`;
+Mensaje del usuario: ${message}
 
-  // Solo retornar el mensaje del usuario, el contexto debe estar en la configuración del Assistant
-  return [
-    {
-      role: 'user',
-      content: `Información del negocio: ${JSON.stringify(businessContext)}. Configuración de citas: ${JSON.stringify(citaContext)}. Canal: ${source}. ${rol}\n${citaInstruccion}\n\nMensaje del usuario: ${message}`,
-    },
-  ];
+Responde de manera natural y útil, usando siempre la fecha actual real.`;
 } 
