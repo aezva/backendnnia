@@ -3,10 +3,10 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 console.log('DEBUG SUPABASE_URL:', process.env.SUPABASE_URL);
-console.log('DEBUG SUPABASE_SERVICE_KEY:', process.env.SUPABASE_SERVICE_KEY ? '[PRESENTE]' : '[VACÍA]');
+console.log('DEBUG SUPABASE_SERVICE_ROLE_KEY:', process.env.SUPABASE_SERVICE_ROLE_KEY ? '[PRESENTE]' : '[VACÍA]');
 
 const supabaseUrl = process.env.SUPABASE_URL || '';
-const supabaseKey = process.env.SUPABASE_SERVICE_KEY || '';
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 export const supabase = createClient(supabaseUrl, supabaseKey);
 
 export async function getClientData(clientId: string) {
@@ -179,20 +179,8 @@ export async function createAppointment(appointment: any) {
     // Intentar crear notificación asociada, pero no fallar si hay error
     if (cita && cita.client_id) {
       try {
-        // Obtener el business_info_id correspondiente al client_id
-        const { data: businessInfo, error: businessError } = await supabase
-          .from('business_info')
-          .select('id')
-          .eq('client_id', cita.client_id)
-          .single();
-        
-        if (businessError) {
-          console.error('❌ Error obteniendo business_info:', businessError);
-          return cita; // Retornar la cita aunque no se pueda crear la notificación
-        }
-        
         await createNotification({
-          client_id: businessInfo.id, // Usar business_info.id en lugar de client_id
+          client_id: cita.client_id, // Usar el client_id real de la cita
           type: 'appointment_created',
           title: 'Nueva cita agendada',
           body: `Se ha agendado una cita para ${cita.name} el ${cita.date} a las ${cita.time}`,
