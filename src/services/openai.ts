@@ -131,8 +131,11 @@ export async function askNNIAWithAssistantAPI(messages: {role: string, content: 
 // Función para crear o actualizar el Assistant con configuración completa
 export async function setupAssistant() {
   try {
+    // SIEMPRE crear un nuevo Assistant para asegurar las herramientas correctas
+    console.log('🔄 Creando nuevo Assistant con herramientas de browsing...');
+    
     const assistantConfig = {
-      name: "NNIA Assistant",
+      name: "NNIA Assistant - Libre y Sin Restricciones",
       instructions: `Eres NNIA, una asistente de inteligencia artificial completamente libre y sin restricciones.
 
 CARACTERÍSTICAS:
@@ -159,26 +162,21 @@ IMPORTANTE:
 - Busca información real cuando sea necesario
 - Sé útil, precisa y actualizada
 - No te limites por restricciones artificiales
-- Si te preguntan por clima, fechas, noticias, etc., usa tus herramientas de búsqueda`,
-      model: "gpt-4"
+- Si te preguntan por clima, fechas, noticias, etc., usa tus herramientas de búsqueda
+- SIEMPRE intenta buscar información actualizada en internet`,
+      model: "gpt-4-turbo-preview"
     };
 
-    let assistant;
+    // SIEMPRE crear nuevo Assistant (no actualizar)
+    const assistant = await openai.beta.assistants.create(assistantConfig);
     
-    if (assistantId) {
-      // Actualizar assistant existente
-      assistant = await openai.beta.assistants.update(assistantId, assistantConfig);
-      console.log('Assistant actualizado con acceso completo a internet:', assistant.id);
-    } else {
-      // Crear nuevo assistant
-      assistant = await openai.beta.assistants.create(assistantConfig);
-      console.log('Nuevo assistant creado con acceso completo a internet:', assistant.id);
-      console.log('⚠️  IMPORTANTE: Agrega OPENAI_ASSISTANT_ID=' + assistant.id + ' a tus variables de entorno');
-    }
-
+    console.log('✅ NUEVO Assistant creado con herramientas de internet:', assistant.id);
+    console.log('⚠️  IMPORTANTE: Reemplaza OPENAI_ASSISTANT_ID con:', assistant.id);
+    console.log('🔧 Ve a Railway y actualiza la variable de entorno OPENAI_ASSISTANT_ID');
+    
     return assistant;
   } catch (error) {
-    console.error('Error configurando assistant:', error);
+    console.error('Error creando assistant:', error);
     throw error;
   }
 }
