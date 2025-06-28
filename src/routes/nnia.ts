@@ -167,13 +167,55 @@ router.get('/notifications', async (req: Request, res: Response) => {
   }
 });
 
-// Crear notificación
+// Crear notificación con validaciones profesionales
 router.post('/notifications', async (req: Request, res: Response) => {
+  console.log('🔍 POST /notifications - Iniciando creación de notificación');
+  console.log('🔍 POST /notifications - Datos recibidos:', req.body);
+  
   try {
+    // Validaciones básicas
+    if (!req.body.client_id) {
+      console.log('❌ POST /notifications - Falta client_id');
+      res.status(400).json({ 
+        error: 'Falta client_id',
+        message: 'El client_id es requerido para crear una notificación'
+      });
+      return;
+    }
+
+    if (!req.body.type) {
+      console.log('❌ POST /notifications - Falta type');
+      res.status(400).json({ 
+        error: 'Falta type',
+        message: 'El tipo de notificación es requerido'
+      });
+      return;
+    }
+
+    if (!req.body.title) {
+      console.log('❌ POST /notifications - Falta title');
+      res.status(400).json({ 
+        error: 'Falta title',
+        message: 'El título de la notificación es requerido'
+      });
+      return;
+    }
+
+    console.log('🔍 POST /notifications - Validaciones básicas pasadas, creando notificación');
     const data = await createNotification(req.body);
-    res.json({ success: true, notification: data });
+    
+    console.log('✅ POST /notifications - Notificación creada exitosamente:', data.id);
+    res.json({ 
+      success: true, 
+      notification: data,
+      message: 'Notificación creada exitosamente'
+    });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    console.error('❌ POST /notifications - Error:', error.message);
+    res.status(500).json({ 
+      error: error.message,
+      message: 'Error al crear la notificación'
+    });
   }
 });
 
