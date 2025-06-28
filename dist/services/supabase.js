@@ -63,15 +63,25 @@ async function getPublicBusinessData(clientId) {
 }
 // Obtener citas de un cliente
 async function getAppointments(clientId) {
-    const { data, error } = await exports.supabase
-        .from('appointments')
-        .select('*')
-        .eq('client_id', clientId)
-        .order('appointment_date', { ascending: true })
-        .order('appointment_time', { ascending: true });
-    if (error)
+    console.log('🔍 getAppointments - clientId:', clientId);
+    try {
+        const { data, error } = await exports.supabase
+            .from('appointments')
+            .select('*')
+            .eq('client_id', clientId)
+            .order('date', { ascending: true })
+            .order('time', { ascending: true });
+        if (error) {
+            console.error('❌ Error en getAppointments:', error);
+            throw error;
+        }
+        console.log('✅ getAppointments - citas encontradas:', data?.length || 0);
+        return data;
+    }
+    catch (error) {
+        console.error('❌ Error completo en getAppointments:', error);
         throw error;
-    return data;
+    }
 }
 // Helper para limpiar notificación antes de insertar
 function cleanNotificationInput(notification) {
@@ -105,41 +115,54 @@ async function getBusinessInfoIdByClientId(clientId) {
 }
 // En createAppointment, obtener el id de business_info y usarlo en la notificación
 async function createAppointment(appointment) {
+    console.log('🔍 createAppointment - datos recibidos:', appointment);
     // Mapear campos del formato NNIA al formato de la base de datos
+    // Usando los nombres de columnas que SÍ existen en la tabla appointments
     const citaData = {
         client_id: appointment.client_id,
-        client_name: appointment.name,
-        client_email: appointment.email,
-        service_name: appointment.type,
-        appointment_date: appointment.date,
-        appointment_time: appointment.time,
+        name: appointment.name, // en lugar de client_name
+        email: appointment.email, // en lugar de client_email
+        type: appointment.type, // en lugar de service_name
+        date: appointment.date, // en lugar de appointment_date
+        time: appointment.time, // en lugar de appointment_time
         status: appointment.status || 'pending',
         origin: appointment.origin || 'web',
         notes: appointment.notes || ''
     };
-    const { data, error } = await exports.supabase
-        .from('appointments')
-        .insert([citaData])
-        .select();
-    if (error)
-        throw error;
-    const cita = data[0];
-    // Intentar crear notificación asociada, pero no fallar si hay error
-    if (cita && cita.client_id) {
-        try {
-            await createNotification({
-                client_id: cita.client_id,
-                type: 'appointment_created',
-                title: 'Nueva cita agendada',
-                message: `Se ha agendado una cita para ${cita.client_name} el ${cita.appointment_date} a las ${cita.appointment_time}`,
-                data: JSON.stringify(cita)
-            });
+    console.log('🔍 createAppointment - datos mapeados:', citaData);
+    try {
+        const { data, error } = await exports.supabase
+            .from('appointments')
+            .insert([citaData])
+            .select();
+        if (error) {
+            console.error('❌ Error en createAppointment:', error);
+            throw error;
         }
-        catch (notifError) {
-            console.error('Error creando notificación:', notifError);
+        const cita = data[0];
+        console.log('✅ createAppointment - cita creada:', cita);
+        // Intentar crear notificación asociada, pero no fallar si hay error
+        if (cita && cita.client_id) {
+            try {
+                await createNotification({
+                    client_id: cita.client_id,
+                    type: 'appointment_created',
+                    title: 'Nueva cita agendada',
+                    message: `Se ha agendado una cita para ${cita.name} el ${cita.date} a las ${cita.time}`,
+                    data: JSON.stringify(cita)
+                });
+                console.log('✅ Notificación creada exitosamente');
+            }
+            catch (notifError) {
+                console.error('❌ Error creando notificación:', notifError);
+            }
         }
+        return cita;
     }
-    return cita;
+    catch (error) {
+        console.error('❌ Error completo en createAppointment:', error);
+        throw error;
+    }
 }
 // Obtener disponibilidad de un cliente
 async function getAvailability(clientId) {

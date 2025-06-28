@@ -62,8 +62,8 @@ export async function getAppointments(clientId: string) {
       .from('appointments')
       .select('*')
       .eq('client_id', clientId)
-      .order('appointment_date', { ascending: true })
-      .order('appointment_time', { ascending: true });
+      .order('date', { ascending: true })
+      .order('time', { ascending: true });
     
     if (error) {
       console.error('❌ Error en getAppointments:', error);
@@ -114,13 +114,14 @@ export async function createAppointment(appointment: any) {
   console.log('🔍 createAppointment - datos recibidos:', appointment);
   
   // Mapear campos del formato NNIA al formato de la base de datos
+  // Usando los nombres de columnas que SÍ existen en la tabla appointments
   const citaData = {
     client_id: appointment.client_id,
-    client_name: appointment.name,
-    client_email: appointment.email,
-    service_name: appointment.type,
-    appointment_date: appointment.date,
-    appointment_time: appointment.time,
+    name: appointment.name,           // en lugar de client_name
+    email: appointment.email,         // en lugar de client_email
+    type: appointment.type,           // en lugar de service_name
+    date: appointment.date,           // en lugar de appointment_date
+    time: appointment.time,           // en lugar de appointment_time
     status: appointment.status || 'pending',
     origin: appointment.origin || 'web',
     notes: appointment.notes || ''
@@ -149,7 +150,7 @@ export async function createAppointment(appointment: any) {
           client_id: cita.client_id,
           type: 'appointment_created',
           title: 'Nueva cita agendada',
-          message: `Se ha agendado una cita para ${cita.client_name} el ${cita.appointment_date} a las ${cita.appointment_time}`,
+          message: `Se ha agendado una cita para ${cita.name} el ${cita.date} a las ${cita.time}`,
           data: JSON.stringify(cita)
         });
         console.log('✅ Notificación creada exitosamente');
